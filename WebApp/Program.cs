@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Mvc; // для атрибута [FromBody]
+using Microsoft.AspNetCore.Mvc; // for [FromBody]
 using System.Collections.Concurrent;
 using WebApp.Data;
 
@@ -9,8 +9,8 @@ builder.Services.AddSingleton<Agency>();
 
 var app = builder.Build();
 
-app.UseStaticFiles(); // например https://localhost:7201/BG3.jpg для вывода картинки из папки wwwroot
-app.UseWelcomePage("/"); // стандартная страница для корня
+app.UseStaticFiles(); //  https://localhost:7201/BG3.jpg 
+app.UseWelcomePage("/"); 
 
 app.MapGet("/actors", Results<Ok<ConcurrentDictionary<string,Person>>,NoContent> (Agency ag) => ag.Actors.Count > 0 ? TypedResults.Ok(ag.Actors) : TypedResults.NoContent());
 
