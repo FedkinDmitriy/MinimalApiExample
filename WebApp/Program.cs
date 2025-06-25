@@ -1,63 +1,38 @@
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc; // для атрибута [FromBody]
+using System.Collections.Concurrent;
 using WebApp.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-List<Person> persons = [new Person { Id = 1, FirstName = "Tom", LastName = "Kukuruz", Age = 50},
-    new Person { Id = 2, FirstName = "Vin", LastName = "Benzin", Age = 45 },
-    new Person { Id = 3, FirstName = "John", LastName = "Doe", Age = 33}];
+builder.Services.AddSingleton<Agency>();
 
 var app = builder.Build();
 
+app.UseStaticFiles(); // например https://localhost:7201/BG3.jpg для вывода картинки из папки wwwroot
+app.UseWelcomePage("/"); // стандартная страница для корня
 
-app.MapGet("/", () => "Something text for someone");
-app.MapGet("/persons", () => persons);
-app.MapGet("/persons/{id}", (int id) =>
+app.MapGet("/actors", Results<Ok<ConcurrentDictionary<string,Person>>,NoContent> (Agency ag) => ag.Actors.Count > 0 ? TypedResults.Ok(ag.Actors) : TypedResults.NoContent());
+
+app.MapGet("/actors/{id}", Results<Ok<Person>,NotFound> (Agency ag, string id) => ag.Actors.TryGetValue(id, out var actor) ? TypedResults.Ok(actor) : TypedResults.NotFound());
+
+app.MapPost("/actors", Results<Created<Person>, BadRequest> (Agency ag, [FromBody] Person actor) => ag.Actors.TryAdd(actor.LastName, actor) ? TypedResults.Created($"/actors/{actor.LastName}", actor) : TypedResults.BadRequest());
+
+app.MapPut("/actors", Results<NoContent, BadRequest> (Agency ag, [FromBody] Person actor) => 
 {
-    var person = persons.FirstOrDefault(p => p.Id == id);
-    return person is not null ? Results.Ok(person) : Results.NotFound();
-});
-
-
-app.MapPost("/persons", (Person newPerson) => {
-
-    var existing = persons.FirstOrDefault(p => p.Id == newPerson.Id);
-
-    if (existing is null)
+    if (ag.Actors.TryGetValue(actor.LastName, out _))
     {
-        persons.Add(newPerson);
-        return Results.Created($"/persons/{newPerson.Id}", newPerson);
-    }
-    else return Results.Conflict($"Person with id {newPerson.Id} already exists");
-});
-
-app.MapPut("/persons", (Person updatedPerson) =>
-{
-    var person = persons.FirstOrDefault(p => p.Id == updatedPerson.Id);
-    if (person is null)
-    {
-        return Results.NotFound($"Person with id {updatedPerson.Id} not found");
-    }
-
-    person.FirstName = updatedPerson.FirstName;
-    person.LastName = updatedPerson.LastName;
-    person.Age = updatedPerson.Age;
-
-    return Results.Ok(person);
-});
-
-app.MapDelete("/persons/{id}", (int id) =>
-{
-    var person = persons.FirstOrDefault(p => p.Id == id);
-    if(person is null)
-    {
-        return Results.NotFound();
+        ag.Actors[actor.LastName] = actor;
+        return TypedResults.NoContent();
     }
     else
     {
-        persons.Remove(person);
-        return Results.Ok();
+        return TypedResults.BadRequest();
     }
-});
+}
+);
+
+app.MapDelete("/actors/{id}", Results<NoContent, NotFound> (Agency ag, string id) => ag.Actors.TryRemove(id, out _ ) ? TypedResults.NoContent() : TypedResults.NotFound());
 
 
 app.Run();
